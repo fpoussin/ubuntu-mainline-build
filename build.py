@@ -7,20 +7,13 @@ from subprocess import run, PIPE, STDOUT
 
 parser = argparse.ArgumentParser()
 parser.add_argument("version", type=str)
-parser.add_argument("-p", "--patch", type=str, help="Extra patches to apply")
-parser.add_argument("-g", "--gcc", type=str, help="GCC version")
+parser.add_argument("-p", "--patch", type=str, action='append', nargs='*', help="Extra patch to apply. Can be used multiple times")
 parser.add_argument("-n", "--nobuild", action='store_true', help="Don't build")
 args = parser.parse_args()
 
 patch_folder = "patches-{}".format(args.version)
 linux_dir = os.getcwd() + '/linux'
 env = os.environ.copy()
-
-gcc = ''
-if args.gcc:
-  env["CC"] = gcc
-
-print('Using', gcc)
 
 if not os.path.exists(patch_folder):
   os.mkdir(patch_folder)
@@ -57,9 +50,10 @@ def patch(version, patch):
       with open(os.path.join(r, file), 'r') as data:
         run("git apply ../{}".format(os.path.join(r, file)), cwd=linux_dir, shell=True)
 
-  if patch:
-    print(patch)
-    run("git apply ../{}".format(patch), cwd=linux_dir, shell=True)
+  for p in patch:
+    p = p[0]
+    print(p)
+    run("git apply ../{}".format(p), cwd=linux_dir, shell=True)
 
 def config():
   run("cp /boot/config-`uname -r` .config", cwd=linux_dir, shell=True)
