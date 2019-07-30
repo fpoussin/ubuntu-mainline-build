@@ -1,0 +1,7 @@
+patches-*
+*.deb
+*.gz
+*.dsc
+*.buildinfo
+*.changes
+
