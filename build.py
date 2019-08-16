@@ -2,6 +2,7 @@
 
 import requests
 import os
+import re
 import argparse
 from subprocess import run, PIPE, STDOUT
 
@@ -35,9 +36,10 @@ def get_sources(ver):
   if not os.path.exists(linux_dir):
     run("git clone {0} {1}".format(git, linux_dir))
 
+  pattern = re.compile('^\d{4}-')
   for i in patches:
     patch_path = "{0}/{1}".format(patch_folder, i)
-    if i == "" or os.path.exists(patch_path):
+    if os.path.exists(patch_path) or not pattern.match(i):
       continue
     url = "https://kernel.ubuntu.com/~kernel-ppa/mainline/v{0}/{1}".format(ver, i)
     patch = requests.get(url).text
