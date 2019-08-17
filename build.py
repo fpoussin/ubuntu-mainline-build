@@ -23,8 +23,8 @@ def get_sources(ver):
   r = requests.get("https://kernel.ubuntu.com/~kernel-ppa/mainline/v{}/SOURCES".format(ver))
 
   if r.status_code != 200:
-    print("Kernel version not found")
-    raise NameError
+    print("Kernel version not found ({})".format(r.url))
+    exit(1)
 
   sources = r.text.strip().split('\n')
   git = sources[0].split(' ')[0]
