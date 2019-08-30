@@ -9,6 +9,6 @@ sudo apt install git build-essential kernel-package fakeroot libncurses5-dev lib
 ### Using
 
 ```
-git submodule update --init
-./build.py [version] -p <patch1> -p <patch2> -p <patchN>...
+git submodule update --init # This takes a while
+./build.py [version] -p patches/*.patch -p <some_other_patch>...
 ```
