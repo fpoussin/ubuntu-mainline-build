@@ -51,17 +51,17 @@ def checkout_branch(ver):
   run("git -C {0} fetch --all --tags".format(linux_dir, ver), shell=True)
   run("git -C {0} checkout v{1}".format(linux_dir, ver), shell=True, check=True)
 
-def patch(version, patch):
+def patch(version, patches):
   for r, d, f in os.walk(patch_folder):
     for file in sorted(f):
       print(file)
       with open(os.path.join(r, file), 'r') as data:
         run("git apply ../{}".format(os.path.join(r, file)), cwd=linux_dir, shell=True, check=True)
 
-  for p in patch:
-    p = p[0]
-    print(p)
-    run("git apply ../{}".format(p), cwd=linux_dir, shell=True, check=True)
+  for patch in patches:
+    for p in patch:
+      print(p)
+      run("git apply ../{}".format(p), cwd=linux_dir, shell=True, check=True)
 
 def config():
   run("cp /boot/config-`uname -r` .config", cwd=linux_dir, shell=True)
