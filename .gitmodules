@@ -1,3 +1,3 @@
 [submodule "linux"]
 	path = linux
-	url = git://git.launchpad.net/~ubuntu-kernel-test/ubuntu/+source/linux/+git/mainline-crack
+	url = git://kernel.ubuntu.com/virgin/linux-stable.git
