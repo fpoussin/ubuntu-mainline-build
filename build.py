@@ -4,7 +4,7 @@ import requests
 import os
 import re
 import argparse
-from subprocess import run, PIPE, STDOUT
+from subprocess import run
 
 parser = argparse.ArgumentParser()
 parser.add_argument("version", type=str)
@@ -47,8 +47,8 @@ def get_sources(ver):
 
 def checkout_branch(ver):
   run("git -C {0} clean -fxd".format(linux_dir), shell=True)
-  run("git -C {0} reset --hard".format(linux_dir, ver), shell=True)
-  run("git -C {0} fetch --all --tags".format(linux_dir, ver), shell=True)
+  run("git -C {0} reset --hard".format(linux_dir), shell=True)
+  run("git -C {0} fetch --all --tags".format(linux_dir), shell=True)
   run("git -C {0} checkout v{1}".format(linux_dir, ver), shell=True, check=True)
 
 def patch(version, patches):
