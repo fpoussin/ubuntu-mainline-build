@@ -20,30 +20,39 @@ if not os.path.exists(patch_folder):
   os.mkdir(patch_folder)
 
 def get_sources(ver):
+
+  do_ubuntu_patches = False
+  sources = []
+  git = ""
+  patches = []
   r = requests.get("https://kernel.ubuntu.com/~kernel-ppa/mainline/v{}/SOURCES".format(ver))
+
+  if r.status_code == 200:
+    print("Applying ubuntu patches ({})".format(ver))
+    do_ubuntu_patches = True
+    sources = r.text.strip().split('\n')
+    git = sources[0].split(' ')[0]
+    patches = sources[1:]
+    print('Ubuntu patches:', patches)
+
+  r = requests.get("https://kernel.ubuntu.com/~kernel-ppa/mainline/v{}/HEADER.html".format(ver))
 
   if r.status_code != 200:
     print("Kernel version not found ({})".format(r.url))
     exit(1)
 
-  sources = r.text.strip().split('\n')
-  git = sources[0].split(' ')[0]
-  patches = sources[1:]
-
-  print('git repo:', git)
-  print('patches:', patches)
-
   if not os.path.exists(linux_dir):
-    run("git clone {0} {1}".format(git, linux_dir))
+    run("git submodule update --init")
 
-  pattern = re.compile('^\d{4}-')
-  for i in patches:
-    patch_path = "{0}/{1}".format(patch_folder, i)
-    if os.path.exists(patch_path) or not pattern.match(i):
-      continue
-    url = "https://kernel.ubuntu.com/~kernel-ppa/mainline/v{0}/{1}".format(ver, i)
-    patch = requests.get(url).text
-    open(patch_path, 'w').write(patch)
+  if do_ubuntu_patches:
+    pattern = re.compile('^\d{4}-')
+    for i in patches:
+      patch_path = "{0}/{1}".format(patch_folder, i)
+      if os.path.exists(patch_path) or not pattern.match(i):
+        continue
+      url = "https://kernel.ubuntu.com/~kernel-ppa/mainline/v{0}/{1}".format(ver, i)
+      patch = requests.get(url).text
+      open(patch_path, 'w').write(patch)
 
 def checkout_branch(ver):
   run("git -C {0} clean -fxd".format(linux_dir), shell=True)
@@ -58,6 +67,7 @@ def patch(version, patches):
       with open(os.path.join(r, file), 'r') as data:
         run("git apply ../{}".format(os.path.join(r, file)), cwd=linux_dir, shell=True, check=True)
 
+  print("Custom patches:", patches)
   for patch in patches:
     for p in patch:
       print(p)
