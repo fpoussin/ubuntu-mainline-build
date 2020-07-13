@@ -42,7 +42,7 @@ def get_sources(ver):
     exit(1)
 
   if not os.path.exists(linux_dir):
-    run("git submodule update --init")
+    run("git submodule update --init", shell=True, check=True)
 
   if do_ubuntu_patches:
     pattern = re.compile('^\d{4}-')
