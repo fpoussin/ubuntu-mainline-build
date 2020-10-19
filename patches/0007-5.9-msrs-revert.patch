@@ -1,0 +1,221 @@
+diff --git a/arch/x86/kvm/svm/svm.c b/arch/x86/kvm/svm/svm.c
+index 91ea74ae71b8..b8e77f57b0ae 100644
+--- a/arch/x86/kvm/svm/svm.c
++++ b/arch/x86/kvm/svm/svm.c
+@@ -2381,7 +2381,7 @@ static int svm_get_msr_feature(struct kvm_msr_entry *msr)
+ 	case MSR_IA32_PERF_CAPABILITIES:
+ 		return 0;
+ 	default:
+-		return KVM_MSR_RET_INVALID;
++		return 1;
+ 	}
+ 
+ 	return 0;
+diff --git a/arch/x86/kvm/vmx/vmx.c b/arch/x86/kvm/vmx/vmx.c
+index 96979c09ebd1..a0c9d2543761 100644
+--- a/arch/x86/kvm/vmx/vmx.c
++++ b/arch/x86/kvm/vmx/vmx.c
+@@ -1831,7 +1831,7 @@ static int vmx_get_msr_feature(struct kvm_msr_entry *msr)
+ 		msr->data = vmx_get_perf_capabilities();
+ 		return 0;
+ 	default:
+-		return KVM_MSR_RET_INVALID;
++		return 1;
+ 	}
+ }
+ 
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index ce856e0ece84..458706bceb51 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -247,29 +247,6 @@ static struct kmem_cache *x86_fpu_cache;
+ 
+ static struct kmem_cache *x86_emulator_cache;
+ 
+-/*
+- * When called, it means the previous get/set msr reached an invalid msr.
+- * Return 0 if we want to ignore/silent this failed msr access, or 1 if we want
+- * to fail the caller.
+- */
+-static int kvm_msr_ignored_check(struct kvm_vcpu *vcpu, u32 msr,
+-				 u64 data, bool write)
+-{
+-	const char *op = write ? "wrmsr" : "rdmsr";
+-
+-	if (ignore_msrs) {
+-		if (report_ignored_msrs)
+-			vcpu_unimpl(vcpu, "ignored %s: 0x%x data 0x%llx\n",
+-				    op, msr, data);
+-		/* Mask the error */
+-		return 0;
+-	} else {
+-		vcpu_debug_ratelimited(vcpu, "unhandled %s: 0x%x data 0x%llx\n",
+-				       op, msr, data);
+-		return 1;
+-	}
+-}
+-
+ static struct kmem_cache *kvm_alloc_emulator_cache(void)
+ {
+ 	unsigned int useroffset = offsetof(struct x86_emulate_ctxt, src);
+@@ -1394,7 +1371,8 @@ static int kvm_get_msr_feature(struct kvm_msr_entry *msr)
+ 		rdmsrl_safe(msr->index, &msr->data);
+ 		break;
+ 	default:
+-		return kvm_x86_ops.get_msr_feature(msr);
++		if (kvm_x86_ops.get_msr_feature(msr))
++			return 1;
+ 	}
+ 	return 0;
+ }
+@@ -1406,13 +1384,6 @@ static int do_get_msr_feature(struct kvm_vcpu *vcpu, unsigned index, u64 *data)
+ 
+ 	msr.index = index;
+ 	r = kvm_get_msr_feature(&msr);
+-
+-	if (r == KVM_MSR_RET_INVALID) {
+-		/* Unconditionally clear the output for simplicity */
+-		*data = 0;
+-		r = kvm_msr_ignored_check(vcpu, index, 0, false);
+-	}
+-
+ 	if (r)
+ 		return r;
+ 
+@@ -1527,17 +1498,6 @@ static int __kvm_set_msr(struct kvm_vcpu *vcpu, u32 index, u64 data,
+ 	return kvm_x86_ops.set_msr(vcpu, &msr);
+ }
+ 
+-static int kvm_set_msr_ignored_check(struct kvm_vcpu *vcpu,
+-				     u32 index, u64 data, bool host_initiated)
+-{
+-	int ret = __kvm_set_msr(vcpu, index, data, host_initiated);
+-
+-	if (ret == KVM_MSR_RET_INVALID)
+-		ret = kvm_msr_ignored_check(vcpu, index, data, true);
+-
+-	return ret;
+-}
+-
+ /*
+  * Read the MSR specified by @index into @data.  Select MSR specific fault
+  * checks are bypassed if @host_initiated is %true.
+@@ -1559,29 +1519,15 @@ int __kvm_get_msr(struct kvm_vcpu *vcpu, u32 index, u64 *data,
+ 	return ret;
+ }
+ 
+-static int kvm_get_msr_ignored_check(struct kvm_vcpu *vcpu,
+-				     u32 index, u64 *data, bool host_initiated)
+-{
+-	int ret = __kvm_get_msr(vcpu, index, data, host_initiated);
+-
+-	if (ret == KVM_MSR_RET_INVALID) {
+-		/* Unconditionally clear *data for simplicity */
+-		*data = 0;
+-		ret = kvm_msr_ignored_check(vcpu, index, 0, false);
+-	}
+-
+-	return ret;
+-}
+-
+ int kvm_get_msr(struct kvm_vcpu *vcpu, u32 index, u64 *data)
+ {
+-	return kvm_get_msr_ignored_check(vcpu, index, data, false);
++	return __kvm_get_msr(vcpu, index, data, false);
+ }
+ EXPORT_SYMBOL_GPL(kvm_get_msr);
+ 
+ int kvm_set_msr(struct kvm_vcpu *vcpu, u32 index, u64 data)
+ {
+-	return kvm_set_msr_ignored_check(vcpu, index, data, false);
++	return __kvm_set_msr(vcpu, index, data, false);
+ }
+ EXPORT_SYMBOL_GPL(kvm_set_msr);
+ 
+@@ -1701,12 +1647,12 @@ EXPORT_SYMBOL_GPL(handle_fastpath_set_msr_irqoff);
+  */
+ static int do_get_msr(struct kvm_vcpu *vcpu, unsigned index, u64 *data)
+ {
+-	return kvm_get_msr_ignored_check(vcpu, index, data, true);
++	return __kvm_get_msr(vcpu, index, data, true);
+ }
+ 
+ static int do_set_msr(struct kvm_vcpu *vcpu, unsigned index, u64 *data)
+ {
+-	return kvm_set_msr_ignored_check(vcpu, index, *data, true);
++	return __kvm_set_msr(vcpu, index, *data, true);
+ }
+ 
+ #ifdef CONFIG_X86_64
+@@ -3117,7 +3063,17 @@ int kvm_set_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 			return xen_hvm_config(vcpu, data);
+ 		if (kvm_pmu_is_valid_msr(vcpu, msr))
+ 			return kvm_pmu_set_msr(vcpu, msr_info);
+-		return KVM_MSR_RET_INVALID;
++		if (!ignore_msrs) {
++			vcpu_debug_ratelimited(vcpu, "unhandled wrmsr: 0x%x data 0x%llx\n",
++				    msr, data);
++			return 1;
++		} else {
++			if (report_ignored_msrs)
++				vcpu_unimpl(vcpu,
++					"ignored wrmsr: 0x%x data 0x%llx\n",
++					msr, data);
++			break;
++		}
+ 	}
+ 	return 0;
+ }
+@@ -3391,7 +3347,17 @@ int kvm_get_msr_common(struct kvm_vcpu *vcpu, struct msr_data *msr_info)
+ 	default:
+ 		if (kvm_pmu_is_valid_msr(vcpu, msr_info->index))
+ 			return kvm_pmu_get_msr(vcpu, msr_info);
+-		return KVM_MSR_RET_INVALID;
++		if (!ignore_msrs) {
++			vcpu_debug_ratelimited(vcpu, "unhandled rdmsr: 0x%x\n",
++					       msr_info->index);
++			return 1;
++		} else {
++			if (report_ignored_msrs)
++				vcpu_unimpl(vcpu, "ignored rdmsr: 0x%x\n",
++					msr_info->index);
++			msr_info->data = 0;
++		}
++		break;
+ 	}
+ 	return 0;
+ }
+diff --git a/arch/x86/kvm/x86.h b/arch/x86/kvm/x86.h
+index 995ab696dcf0..ed04c1a04d2c 100644
+--- a/arch/x86/kvm/x86.h
++++ b/arch/x86/kvm/x86.h
+@@ -373,29 +373,4 @@ int kvm_spec_ctrl_test_value(u64 value);
+ int kvm_valid_cr4(struct kvm_vcpu *vcpu, unsigned long cr4);
+ bool kvm_vcpu_exit_request(struct kvm_vcpu *vcpu);
+ 
+-#define  KVM_MSR_RET_INVALID  2
+-
+-#define __cr4_reserved_bits(__cpu_has, __c)             \
+-({                                                      \
+-	u64 __reserved_bits = CR4_RESERVED_BITS;        \
+-                                                        \
+-	if (!__cpu_has(__c, X86_FEATURE_XSAVE))         \
+-		__reserved_bits |= X86_CR4_OSXSAVE;     \
+-	if (!__cpu_has(__c, X86_FEATURE_SMEP))          \
+-		__reserved_bits |= X86_CR4_SMEP;        \
+-	if (!__cpu_has(__c, X86_FEATURE_SMAP))          \
+-		__reserved_bits |= X86_CR4_SMAP;        \
+-	if (!__cpu_has(__c, X86_FEATURE_FSGSBASE))      \
+-		__reserved_bits |= X86_CR4_FSGSBASE;    \
+-	if (!__cpu_has(__c, X86_FEATURE_PKU))           \
+-		__reserved_bits |= X86_CR4_PKE;         \
+-	if (!__cpu_has(__c, X86_FEATURE_LA57))          \
+-		__reserved_bits |= X86_CR4_LA57;        \
+-	if (!__cpu_has(__c, X86_FEATURE_UMIP))          \
+-		__reserved_bits |= X86_CR4_UMIP;        \
+-	if (!__cpu_has(__c, X86_FEATURE_VMX))           \
+-		__reserved_bits |= X86_CR4_VMXE;        \
+-	__reserved_bits;                                \
+-})
+-
+ #endif
