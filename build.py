@@ -5,6 +5,7 @@ import os
 import re
 import argparse
 from subprocess import run
+from glob import glob
 
 parser = argparse.ArgumentParser()
 parser.add_argument("version", type=str)
@@ -70,11 +71,14 @@ def patch(version, patches):
   print("Custom patches:", patches)
   for patch in patches:
     for p in patch:
-      print(p)
-      run("git apply ../{}".format(p), cwd=linux_dir, shell=True, check=True)
+      for path in glob(p):
+        print(path)
+        run("git apply {}".format(path), cwd=linux_dir, shell=True, check=True)
 
 def config():
   run("cp /boot/config-`uname -r` .config", cwd=linux_dir, shell=True)
+  run("sed -ri '/CONFIG_SYSTEM_TRUSTED_KEYS/s/=.+/=""/g' .config", cwd=linux_dir, shell=True, env=env, check=True)
+  run("sed -ri '/CONFIG_SYSTEM_REVOCATION_KEYS/s/=.+/=""/g' .config", cwd=linux_dir, shell=True, env=env, check=True)
   run("nice make olddefconfig", cwd=linux_dir, shell=True, env=env, check=True)
   run("scripts/config --disable DEBUG_INFO", cwd=linux_dir, shell=True, env=env, check=True)
 
