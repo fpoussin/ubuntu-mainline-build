@@ -62,6 +62,8 @@ def checkout_branch(ver):
   run("git -C {0} checkout v{1}".format(linux_dir, ver), shell=True, check=True)
 
 def patch(version, patches):
+  if not patches:
+    return
   for r, d, f in os.walk(patch_folder):
     for file in sorted(f):
       print(file)
